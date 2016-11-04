@@ -5,9 +5,8 @@ namespace Laravel\Cashier;
 use Carbon\Carbon;
 use LogicException;
 use DateTimeInterface;
-use Illuminate\Database\Eloquent\Model;
 
-class Subscription extends Model
+class Subscription extends \Moloquent
 {
     /**
      * The attributes that aren't mass assignable.
