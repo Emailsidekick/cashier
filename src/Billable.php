@@ -79,16 +79,16 @@ trait Billable
     }
 
     /**
-     * Invoice the customer for the given amount.
+     * Add an invoice item to the customer's upcoming invoice.
      *
      * @param  string  $description
      * @param  int  $amount
      * @param  array  $options
-     * @return bool
+     * @return \Stripe\InvoiceItem
      *
      * @throws \Stripe\Error\Card
      */
-    public function invoiceFor($description, $amount, array $options = [])
+    public function tab($description, $amount, array $options = [])
     {
         if (! $this->stripe_id) {
             throw new InvalidArgumentException(class_basename($this).' is not a Stripe customer. See the createAsStripeCustomer method.');
@@ -101,9 +101,24 @@ trait Billable
             'description' => $description,
         ], $options);
 
-        StripeInvoiceItem::create(
+        return StripeInvoiceItem::create(
             $options, ['api_key' => $this->getStripeKey()]
         );
+    }
+
+    /**
+     * Invoice the customer for the given amount and generate an invoice immediately.
+     *
+     * @param  string  $description
+     * @param  int  $amount
+     * @param  array  $options
+     * @return bool
+     *
+     * @throws \Stripe\Error\Card
+     */
+    public function invoiceFor($description, $amount, array $options = [])
+    {
+        $this->tab($description, $amount, $options);
 
         return $this->invoice();
     }
@@ -324,6 +339,31 @@ trait Billable
     }
 
     /**
+     * Get a collection of the entity's cards.
+     *
+     * @param  array  $parameters
+     * @return \Illuminate\Support\Collection
+     */
+    public function cards($parameters = [])
+    {
+        $cards = [];
+
+        $parameters = array_merge(['limit' => 24], $parameters);
+
+        $stripeCards = $this->asStripeCustomer()->sources->all(
+            ['object' => 'card'] + $parameters
+        );
+
+        if (! is_null($stripeCards)) {
+            foreach ($stripeCards->data as $card) {
+                $cards[] = new Card($this, $card);
+            }
+        }
+
+        return new Collection($cards);
+    }
+
+    /**
      * Update customer's credit card.
      *
      * @param  string  $token
@@ -404,6 +444,18 @@ trait Billable
         }
 
         return $this;
+    }
+
+    /**
+     * Deletes the entity's cards.
+     *
+     * @return void
+     */
+    public function deleteCards()
+    {
+        $this->cards()->each(function ($card) {
+            $card->delete();
+        });
     }
 
     /**
